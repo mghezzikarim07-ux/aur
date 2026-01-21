@@ -7,9 +7,9 @@ local LocalPlayer = Players.LocalPlayer
 local FIREBASE_URL = "https://karim-notifier-default-rtdb.europe-west1.firebasedatabase.app/history.json"
 local PLACE_ID = 109983668079237 
 
-local AutoJoinEnabled = false -- حالة الدخول التلقائي
+local AutoJoinEnabled = false
+local ActivationTime = 0 -- متغير لتخزين وقت تفعيل الخاصية
 
--- القائمة المحدثة (تم حذف Los Nooo My Hotspotsitos)
 local TARGET_ITEMS = {
     "Mariachi Corazoni", "Chillin Chili", "La Taco Combinasion", 
     "Bombardinii Tortini", "Capi Taco", "Nooo My Hotspot", 
@@ -81,7 +81,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -50, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "AUTO JOIN RADAR"
+Title.Text = "SMART AUTO-JOIN"
 Title.TextColor3 = Color3.fromRGB(255, 215, 0)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 16
@@ -102,7 +102,9 @@ Instance.new("UICorner", AutoJoinBtn)
 AutoJoinBtn.MouseButton1Click:Connect(function()
     AutoJoinEnabled = not AutoJoinEnabled
     if AutoJoinEnabled then
-        AutoJoinBtn.Text = "AUTO JOIN: ON"
+        -- عند التفعيل، نسجل الوقت الحالي بالملي ثانية
+        ActivationTime = os.time() * 1000 
+        AutoJoinBtn.Text = "AUTO JOIN: ON (New Only)"
         AutoJoinBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
     else
         AutoJoinBtn.Text = "AUTO JOIN: OFF"
@@ -154,6 +156,8 @@ local function refreshData()
     local success, response = pcall(function() return game:HttpGet(FIREBASE_URL) end)
     if success and response ~= "null" then
         local data = HttpService:JSONDecode(response)
+        
+        -- تنظيف القائمة المعروضة
         for _, v in pairs(Scroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
         
         local list = {}
@@ -163,16 +167,19 @@ local function refreshData()
         table.sort(list, function(a,b) return a.time > b.time end)
         
         for i, item in ipairs(list) do
+            -- تجاهل العناصر التي مر عليها أكثر من دقيقتين للعرض فقط
             if (os.time() * 1000 - item.time) > 120000 then continue end
             
             local jobId = string.match(item.content, "%w+-%w+-%w+-%w+-%w+")
             
-            -- تنفيذ الدخول التلقائي إذا كان مفعلاً
-            if AutoJoinEnabled and jobId then
+            -- شرط الدخول التلقائي الذكي:
+            -- يجب أن يكون الزر مفعلاً، ويجب أن يكون وقت العنصر أحدث من وقت تفعيل الزر
+            if AutoJoinEnabled and jobId and item.time > ActivationTime then
                 TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, LocalPlayer)
-                return -- التوقف بعد محاولة الدخول
+                return 
             end
 
+            -- عرض العناصر في القائمة بشكل طبيعي
             local row = Instance.new("Frame")
             row.Size = UDim2.new(1, -5, 0, 0)
             row.AutomaticSize = Enum.AutomaticSize.Y
@@ -229,7 +236,7 @@ MinBtn.MouseButton1Click:Connect(function()
     IconBtn.Visible = true
 end)
 
--- تحديث تلقائي
+-- تحديث تلقائي (كل ثانية) لضمان الدخول السريع عند ظهور شيء جديد
 task.spawn(function()
     while true do
         if MainFrame.Visible or AutoJoinEnabled then refreshData() end
