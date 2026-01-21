@@ -11,7 +11,7 @@ local PLACE_ID = 109983668079237
 local TARGET_ITEMS = {
     "Mariachi Corazoni", "Chillin Chili", "La Taco Combinasion", 
     "Bombardinii Tortini", "Capi Taco", "Nooo My Hotspot", 
-    "Corn Corn Corn Sahur", "Los Nooo My Hotspotsitos", 
+    "Corn Corn Corn Sahur", 
     "Tacorita Bicicleta", "chipso and queso", 
     "quesadillo vampiro"
 }
