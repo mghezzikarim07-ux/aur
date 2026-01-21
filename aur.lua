@@ -7,6 +7,8 @@ local LocalPlayer = Players.LocalPlayer
 local FIREBASE_URL = "https://karim-notifier-default-rtdb.europe-west1.firebasedatabase.app/history.json"
 local PLACE_ID = 109983668079237 
 
+local AutoJoinEnabled = false -- حالة الدخول التلقائي
+
 -- القائمة المحدثة (تم حذف Los Nooo My Hotspotsitos)
 local TARGET_ITEMS = {
     "Mariachi Corazoni", "Chillin Chili", "La Taco Combinasion", 
@@ -15,30 +17,119 @@ local TARGET_ITEMS = {
     "chipso and queso", "quesadillo vampiro"
 }
 
-local LastJoinedJob = "" -- لمنع تكرار الدخول لنفس السيرفر
-
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SAB_AutoJoin_Radar"
+ScreenGui.Name = "SAB_Elite_Radar_V3"
 ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.ResetOnSpawn = false
 
--- [إعدادات الواجهة المختصرة]
+-- وظيفة السحب
+local function makeDraggable(frame, handle)
+    local dragging, dragInput, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    handle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- الأيقونة
+local IconBtn = Instance.new("TextButton")
+IconBtn.Size = UDim2.new(0, 60, 0, 60)
+IconBtn.Position = UDim2.new(0, 20, 0.5, 0)
+IconBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+IconBtn.Text = "💎"
+IconBtn.TextSize = 30
+IconBtn.TextColor3 = Color3.new(1,1,1)
+IconBtn.Parent = ScreenGui
+Instance.new("UICorner", IconBtn).CornerRadius = UDim.new(1, 0)
+Instance.new("UIStroke", IconBtn).Color = Color3.fromRGB(255, 215, 0)
+makeDraggable(IconBtn, IconBtn)
+
+-- اللوحة الرئيسية
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 300, 0, 100)
-MainFrame.Position = UDim2.new(0.5, -150, 0, 50)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Size = UDim2.new(0, 350, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -240)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.Visible = false
 MainFrame.Parent = ScreenGui
-Instance.new("UICorner", MainFrame)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(45, 45, 45)
 
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, 0, 1, 0)
-StatusLabel.Text = "Status: Monitoring for Items..."
-StatusLabel.TextColor3 = Color3.new(1, 1, 1)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Font = Enum.Font.GothamBold
-StatusLabel.TextSize = 14
-StatusLabel.Parent = MainFrame
+-- الرأس (Header)
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Header.Parent = MainFrame
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
+makeDraggable(MainFrame, Header)
 
--- وظيفة التحقق من العناصر
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -50, 1, 0)
+Title.Position = UDim2.new(0, 15, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "AUTO JOIN RADAR"
+Title.TextColor3 = Color3.fromRGB(255, 215, 0)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+-- زر Auto Join
+local AutoJoinBtn = Instance.new("TextButton")
+AutoJoinBtn.Size = UDim2.new(1, -20, 0, 35)
+AutoJoinBtn.Position = UDim2.new(0, 10, 0, 55)
+AutoJoinBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+AutoJoinBtn.Text = "AUTO JOIN: OFF"
+AutoJoinBtn.TextColor3 = Color3.new(1,1,1)
+AutoJoinBtn.Font = Enum.Font.GothamBold
+AutoJoinBtn.Parent = MainFrame
+Instance.new("UICorner", AutoJoinBtn)
+
+AutoJoinBtn.MouseButton1Click:Connect(function()
+    AutoJoinEnabled = not AutoJoinEnabled
+    if AutoJoinEnabled then
+        AutoJoinBtn.Text = "AUTO JOIN: ON"
+        AutoJoinBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+    else
+        AutoJoinBtn.Text = "AUTO JOIN: OFF"
+        AutoJoinBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    end
+end)
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 30, 0, 30)
+MinBtn.Position = UDim2.new(1, -38, 0, 7)
+MinBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MinBtn.Text = "—"
+MinBtn.TextColor3 = Color3.new(1,1,1)
+MinBtn.Parent = Header
+Instance.new("UICorner", MinBtn)
+
+-- القائمة
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, -20, 1, -110)
+Scroll.Position = UDim2.new(0, 10, 0, 100)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 2
+Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Scroll.Parent = MainFrame
+Instance.new("UIListLayout", Scroll).Padding = UDim.new(0, 10)
+
 local function isItemMatch(fullText)
     for _, itemName in pairs(TARGET_ITEMS) do
         if string.find(string.lower(fullText), string.lower(itemName)) then
@@ -48,48 +139,100 @@ local function isItemMatch(fullText)
     return false
 end
 
--- وظيفة البحث والـ Auto Join
-local function checkAndJoin()
+local function cleanFinalText(fullText)
+    local startIdx = string.find(fullText, "Objects:")
+    local endIdx = string.find(fullText, "Teleport code:")
+    local result = ""
+    if startIdx and endIdx then result = string.sub(fullText, startIdx + 8, endIdx - 1)
+    elseif startIdx then result = string.sub(fullText, startIdx + 8)
+    else result = fullText end
+    result = result:gsub("^[%s:]+", "")
+    return result:match("^%s*(.-)%s*$") or "No Items Found"
+end
+
+local function refreshData()
     local success, response = pcall(function() return game:HttpGet(FIREBASE_URL) end)
     if success and response ~= "null" then
         local data = HttpService:JSONDecode(response)
+        for _, v in pairs(Scroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
         
-        local latestItems = {}
-        for _, v in pairs(data) do table.insert(latestItems, v) end
-        table.sort(latestItems, function(a,b) return a.time > b.time end)
+        local list = {}
+        for _, v in pairs(data) do 
+            if isItemMatch(v.content) then table.insert(list, v) end
+        end
+        table.sort(list, function(a,b) return a.time > b.time end)
+        
+        for i, item in ipairs(list) do
+            if (os.time() * 1000 - item.time) > 120000 then continue end
+            
+            local jobId = string.match(item.content, "%w+-%w+-%w+-%w+-%w+")
+            
+            -- تنفيذ الدخول التلقائي إذا كان مفعلاً
+            if AutoJoinEnabled and jobId then
+                TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, LocalPlayer)
+                return -- التوقف بعد محاولة الدخول
+            end
 
-        for _, item in ipairs(latestItems) do
-            -- التحقق إذا كان العنصر مطلوباً وإذا كان الإشعار حديثاً (آخر دقيقتين)
-            if isItemMatch(item.content) and (os.time() * 1000 - item.time) < 120000 then
-                local jobId = string.match(item.content, "%w+-%w+-%w+-%w+-%w+")
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, -5, 0, 0)
+            row.AutomaticSize = Enum.AutomaticSize.Y
+            row.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            row.Parent = Scroll
+            Instance.new("UICorner", row)
+            
+            local txt = Instance.new("TextLabel")
+            txt.Size = UDim2.new(1, -20, 0, 0)
+            txt.AutomaticSize = Enum.AutomaticSize.Y
+            txt.Position = UDim2.new(0, 10, 0, 10)
+            txt.BackgroundTransparency = 1
+            txt.Text = cleanFinalText(tostring(item.content))
+            txt.TextColor3 = Color3.fromRGB(255, 215, 0)
+            txt.TextWrapped = true
+            txt.Font = Enum.Font.GothamMedium
+            txt.TextSize = 15
+            txt.TextXAlignment = Enum.TextXAlignment.Left
+            txt.Parent = row
+            
+            if jobId then
+                local joinBtn = Instance.new("TextButton")
+                joinBtn.Size = UDim2.new(0.9, 0, 0, 32)
+                joinBtn.Position = UDim2.new(0.05, 0, 1, 5)
+                joinBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+                joinBtn.Text = "JOIN SERVER"
+                joinBtn.TextColor3 = Color3.new(1,1,1)
+                joinBtn.Font = Enum.Font.GothamBold
+                joinBtn.Parent = row
+                Instance.new("UICorner", joinBtn)
                 
-                if jobId and jobId ~= LastJoinedJob then
-                    LastJoinedJob = jobId
-                    StatusLabel.Text = "ITEM FOUND! Joining Server..."
-                    StatusLabel.TextColor3 = Color3.new(0, 1, 0)
-                    
-                    -- مسح البيانات قبل الانتقال لضمان الخصوصية
-                    data = nil 
-                    
-                    task.wait(0.5)
+                local p = Instance.new("UIPadding", row)
+                p.PaddingBottom = UDim.new(0, 45)
+
+                joinBtn.MouseButton1Click:Connect(function()
                     TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, LocalPlayer)
-                    break
-                end
+                end)
+            else
+                Instance.new("UIPadding", row).PaddingBottom = UDim.new(0, 10)
             end
         end
     end
 end
 
--- حلقة التحديث التلقائي
-task.spawn(function()
-    while true do
-        checkAndJoin()
-        task.wait(1.5) -- فحص كل ثانية ونصف
-    end
+-- التحكم بالواجهة
+IconBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    IconBtn.Visible = false
+    refreshData()
 end)
 
--- تنظيف البيانات عند الخروج من السيرفر أو إغلاق السكربت
-game:GetService("LogService").MessageOut:Connect(function()
-    -- محاكاة مسح البيانات لضمان عدم بقاء سجلات
-    StatusLabel.Text = "Data Cleared."
+MinBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    IconBtn.Visible = true
+end)
+
+-- تحديث تلقائي
+task.spawn(function()
+    while true do
+        if MainFrame.Visible or AutoJoinEnabled then refreshData() end
+        task.wait(1)
+    end
 end)
