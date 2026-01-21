@@ -8,8 +8,9 @@ local FIREBASE_URL = "https://karim-notifier-default-rtdb.europe-west1.firebased
 local PLACE_ID = 109983668079237 
 
 local AutoJoinEnabled = false
-local ActivationTime = 0 -- متغير لتخزين وقت تفعيل الخاصية
+local ActivationTime = 0 
 
+-- القائمة المحددة بدقة
 local TARGET_ITEMS = {
     "Mariachi Corazoni", "Chillin Chili", "La Taco Combinasion", 
     "Bombardinii Tortini", "Capi Taco", "Nooo My Hotspot", 
@@ -18,7 +19,7 @@ local TARGET_ITEMS = {
 }
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SAB_Elite_Radar_V3"
+ScreenGui.Name = "SAB_Elite_Radar_V4"
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
@@ -81,7 +82,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -50, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "SMART AUTO-JOIN"
+Title.Text = "ELITE RADAR V4"
 Title.TextColor3 = Color3.fromRGB(255, 215, 0)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 16
@@ -102,7 +103,6 @@ Instance.new("UICorner", AutoJoinBtn)
 AutoJoinBtn.MouseButton1Click:Connect(function()
     AutoJoinEnabled = not AutoJoinEnabled
     if AutoJoinEnabled then
-        -- عند التفعيل، نسجل الوقت الحالي بالملي ثانية
         ActivationTime = os.time() * 1000 
         AutoJoinBtn.Text = "AUTO JOIN: ON (New Only)"
         AutoJoinBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
@@ -132,9 +132,14 @@ Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Scroll.Parent = MainFrame
 Instance.new("UIListLayout", Scroll).Padding = UDim.new(0, 10)
 
+-- [التعديل الجوهري للفصل بين الأسماء]
 local function isItemMatch(fullText)
+    local lowerFullText = string.lower(fullText)
     for _, itemName in pairs(TARGET_ITEMS) do
-        if string.find(string.lower(fullText), string.lower(itemName)) then
+        local lowerTarget = string.lower(itemName)
+        -- نستخدم نمط البحث للتأكد من أن الاسم ليس مسبوقاً أو متبوعاً بأحرف أخرى (مطابقة دقيقة للكلمات)
+        -- %f[%a] تعني بداية كلمة، %f[%A] تعني نهاية الكلمة أو الحروف
+        if string.find(lowerFullText, "%f[%a]"..lowerTarget.."%f[%A]") then
             return true
         end
     end
@@ -156,8 +161,6 @@ local function refreshData()
     local success, response = pcall(function() return game:HttpGet(FIREBASE_URL) end)
     if success and response ~= "null" then
         local data = HttpService:JSONDecode(response)
-        
-        -- تنظيف القائمة المعروضة
         for _, v in pairs(Scroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
         
         local list = {}
@@ -167,19 +170,15 @@ local function refreshData()
         table.sort(list, function(a,b) return a.time > b.time end)
         
         for i, item in ipairs(list) do
-            -- تجاهل العناصر التي مر عليها أكثر من دقيقتين للعرض فقط
             if (os.time() * 1000 - item.time) > 120000 then continue end
             
             local jobId = string.match(item.content, "%w+-%w+-%w+-%w+-%w+")
             
-            -- شرط الدخول التلقائي الذكي:
-            -- يجب أن يكون الزر مفعلاً، ويجب أن يكون وقت العنصر أحدث من وقت تفعيل الزر
             if AutoJoinEnabled and jobId and item.time > ActivationTime then
                 TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, LocalPlayer)
                 return 
             end
 
-            -- عرض العناصر في القائمة بشكل طبيعي
             local row = Instance.new("Frame")
             row.Size = UDim2.new(1, -5, 0, 0)
             row.AutomaticSize = Enum.AutomaticSize.Y
@@ -234,9 +233,11 @@ end)
 MinBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     IconBtn.Visible = true
+    -- مسح البيانات المعروضة عند التصغير للخصوصية
+    for _, v in pairs(Scroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
 end)
 
--- تحديث تلقائي (كل ثانية) لضمان الدخول السريع عند ظهور شيء جديد
+-- تحديث تلقائي
 task.spawn(function()
     while true do
         if MainFrame.Visible or AutoJoinEnabled then refreshData() end
