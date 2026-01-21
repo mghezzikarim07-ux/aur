@@ -6,7 +6,15 @@ local LocalPlayer = Players.LocalPlayer
 
 local FIREBASE_URL = "https://karim-notifier-default-rtdb.europe-west1.firebasedatabase.app/history.json"
 local PLACE_ID = 109983668079237 
-local MIN_THRESHOLD = 6.0 
+
+-- القائمة المحدثة بناءً على طلبك
+local TARGET_ITEMS = {
+    "Mariachi Corazoni", "Chillin Chili", "La Taco Combinasion", 
+    "Bombardinii Tortini", "Capi Taco", "Nooo My Hotspot", 
+    "Corn Corn Corn Sahur", "Los Nooo My Hotspotsitos", 
+    "Tacorita Bicicleta", "chipso and queso", 
+    "quesadillo vampiro"
+}
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "SAB_Elite_Radar_V3"
@@ -72,7 +80,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -50, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ELITE SERVER RADAR"
+Title.Text = "SPECIFIC ITEM RADAR"
 Title.TextColor3 = Color3.fromRGB(255, 215, 0)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 16
@@ -99,10 +107,19 @@ Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Scroll.Parent = MainFrame
 Instance.new("UIListLayout", Scroll).Padding = UDim.new(0, 10)
 
--- الوظائف البرمجية
-local function isServerWorthIt(fullText)
-    for valueStr in string.gmatch(fullText, "%((%d+%.?%d*)M/s%)") do
-        if tonumber(valueStr) and tonumber(valueStr) >= MIN_THRESHOLD then return true end
+-- [وظيفة مسح البيانات المؤقتة]
+local function clearLocalCache()
+    for _, v in pairs(Scroll:GetChildren()) do 
+        if v:IsA("Frame") then v:Destroy() end 
+    end
+end
+
+-- الفلتر الجديد بناءً على الأسماء
+local function isItemMatch(fullText)
+    for _, itemName in pairs(TARGET_ITEMS) do
+        if string.find(string.lower(fullText), string.lower(itemName)) then
+            return true
+        end
     end
     return false
 end
@@ -122,16 +139,17 @@ local function refreshData()
     local success, response = pcall(function() return game:HttpGet(FIREBASE_URL) end)
     if success and response ~= "null" then
         local data = HttpService:JSONDecode(response)
-        for _, v in pairs(Scroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
+        clearLocalCache() -- تنظيف القائمة قبل وضع البيانات الجديدة
         
         local list = {}
         for _, v in pairs(data) do 
-            if isServerWorthIt(v.content) then table.insert(list, v) end
+            if isItemMatch(v.content) then table.insert(list, v) end
         end
         table.sort(list, function(a,b) return a.time > b.time end)
         
         for i, item in ipairs(list) do
-            if (os.time() * 1000 - item.time) > 120000 then continue end
+            -- عرض العناصر التي ظهرت في آخر 5 دقائق فقط لضمان الحداثة
+            if (os.time() * 1000 - item.time) > 300000 then continue end
             
             local row = Instance.new("Frame")
             row.Size = UDim2.new(1, -5, 0, 0)
@@ -188,12 +206,13 @@ end)
 MinBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     IconBtn.Visible = true
+    clearLocalCache() -- مسح البيانات تلقائياً عند الإغلاق لضمان الخصوصية
 end)
 
 -- تحديث تلقائي
 task.spawn(function()
     while true do
         if MainFrame.Visible then refreshData() end
-        task.wait(1)
+        task.wait(2) -- زيادة مهلة التحديث قليلاً لتقليل الضغط
     end
 end)
