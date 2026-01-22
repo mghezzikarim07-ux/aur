@@ -11,7 +11,7 @@ local AutoJoinEnabled = false
 local ActivationTime = 0 
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SAB_Elite_Radar_Fixed"
+ScreenGui.Name = "SAB_Elite_Radar_Final"
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
@@ -71,7 +71,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -50, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ELITE RADAR FIXED"
+Title.Text = "SAB RADAR V6"
 Title.TextColor3 = Color3.fromRGB(0, 255, 150)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
@@ -105,6 +105,7 @@ local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -35, 0, 5)
 MinBtn.Text = "—"
+MinBtn.TextColor3 = Color3.new(1,1,1)
 MinBtn.Parent = Header
 
 -- القائمة
@@ -120,7 +121,10 @@ Instance.new("UIListLayout", Scroll).Padding = UDim.new(0, 8)
 local function refreshData()
     local success, response = pcall(function() return game:HttpGet(FIREBASE_URL) end)
     if success and response ~= "null" then
-        local data = HttpService:JSONDecode(response)
+        local decodeSuccess, data = pcall(function() return HttpService:JSONDecode(response) end)
+        if not decodeSuccess then return end
+        
+        -- مسح القائمة الحالية (تذكر طلبك لمسح البيانات تلقائياً)
         for _, v in pairs(Scroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
         
         local list = {}
@@ -128,14 +132,17 @@ local function refreshData()
         table.sort(list, function(a,b) return a.time > b.time end)
         
         for i, item in ipairs(list) do
+            -- عرض آخر دقيقتين فقط
             if (os.time() * 1000 - item.time) > 120000 then continue end
             
-            -- تحسين استخراج JobId ليعمل مع تنسيق JS الجديد
-            local jobId = string.match(item.content, "%x+-%x+-%x+-%x+-%x+")
+            local content = tostring(item.content)
             
-            -- تنظيف النص لعرض الـ Objects فقط (حذف سطر JobId من الواجهة)
-            local displayContent = tostring(item.content):gsub("JobId:.*", ""):trim()
-
+            -- استخراج JobId
+            local jobId = string.match(content, "%x+-%x+-%x+-%x+-%x+")
+            
+            -- تنظيف النص للعرض (إزالة سطر JobId)
+            local displayContent = content:gsub("JobId:[^\n]*", "")
+            
             if AutoJoinEnabled and jobId and item.time > ActivationTime then
                 TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, LocalPlayer)
                 return 
@@ -151,12 +158,13 @@ local function refreshData()
             local txt = Instance.new("TextLabel")
             txt.Size = UDim2.new(0.7, 0, 0, 0)
             txt.AutomaticSize = Enum.AutomaticSize.Y
-            txt.Position = UDim2.new(0, 10, 0, 5)
+            txt.Position = UDim2.new(0, 10, 0, 8)
             txt.BackgroundTransparency = 1
             txt.Text = displayContent
             txt.TextColor3 = Color3.new(1,1,1)
             txt.TextSize = 12
             txt.TextWrapped = true
+            txt.Font = Enum.Font.GothamMedium
             txt.TextXAlignment = Enum.TextXAlignment.Left
             txt.Parent = row
             
@@ -167,16 +175,17 @@ local function refreshData()
                 jb.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
                 jb.Text = "JOIN"
                 jb.TextColor3 = Color3.new(1,1,1)
+                jb.Font = Enum.Font.GothamBold
                 jb.Parent = row
                 Instance.new("UICorner", jb)
+                
                 jb.MouseButton1Click:Connect(function()
                     TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, LocalPlayer)
                 end)
             end
             
-            -- إضافة مسافة صغيرة في الأسفل
             local p = Instance.new("UIPadding", row)
-            p.PaddingBottom = UDim.new(0, 5)
+            p.PaddingBottom = UDim.new(0, 10)
             p.PaddingTop = UDim.new(0, 5)
         end
     end
@@ -191,12 +200,13 @@ end)
 MinBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     IconBtn.Visible = true
+    -- مسح البيانات المعروضة عند التصغير للخصوصية وسرعة الهاتف
     for _, v in pairs(Scroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
 end)
 
 task.spawn(function()
     while true do
         if MainFrame.Visible or AutoJoinEnabled then refreshData() end
-        task.wait(1.5)
+        task.wait(2)
     end
 end)
